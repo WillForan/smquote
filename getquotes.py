@@ -90,6 +90,7 @@ main
 
 for l in open('stocks.txt','r'):
   stk=l.strip()
+  if stk.startswith("#"): continue
   pprint(stk)
   getsavedata(stk)
 
