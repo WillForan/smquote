@@ -25,6 +25,9 @@ def getsavedata(stk):
 
     savename=getsavename(stk,'.p')
 
+    #did we dl anything? do we need to wait
+    dl=0
+
     # TODO: make path for savename
     # mkdir(dirname(savename))
 
@@ -42,12 +45,15 @@ def getsavedata(stk):
          pprint([prevdate, lastquote,nextdate,today])
          quotes.update( ystockquote.get_historical_prices(stk,nextdate,today) )
          savestock(stk,quotes)
+         dl=1
 
     # get all new
     else:
       quotes  = ystockquote.get_historical_prices(stk,firstday,today)
       savestock(stk,quotes)
+      dl=1
 
+    if dl: time.sleep(10)
     return quotes
 
 
@@ -86,7 +92,6 @@ for l in open('stocks.txt','r'):
   stk=l.strip()
   pprint(stk)
   getsavedata(stk)
-  time.sleep(5)
 
 
 
