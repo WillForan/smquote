@@ -67,7 +67,7 @@ def ystocktoCSV(stk,quotes):
    columns=['Adj Close','Close','High','Low','Open','Volume']
    # date, 'Close', 'High', 'Low', 'Open', 'Volume','Adj Close'
    twod = [  [k]+[v[c] for c in columns] for k,v in quotes.items() ]
-   with open(savename,'w',newline='') as csvfile:
+   with open(savename,'w') as csvfile:
      w = csv.writer(csvfile,quoting=csv.QUOTE_MINIMAL)
      w.writerow(['Name','Date'] + columns)
      for line in twod:
@@ -88,7 +88,7 @@ main
  get historical data from 2013 onward, save in data/stock.csv
 """
 
-for l in open('stocks.txt','r'):
+for l in open('nasdaqtickers.txt','r'):
   stk=l.strip()
   if stk.startswith("#"): continue
   pprint(stk)
