@@ -6,6 +6,7 @@
 library(plyr)  # rbind.fill
 library(dplyr) # %>%
 library(zoo) # rollaply
+library(RcppRoll) # window/roll functions
 library(ggplot2)
 
 # what window lenght do we want to use for rolling stats
@@ -16,19 +17,47 @@ quotes <- lapply(Sys.glob('data/*csv'),read.table,header=T,sep=",")
 
 # collapse list into 1 dataframe, calculations
 quotesdf <- rbind.fill(quotes) %>%
-     # bad day for the stock?
+    # bad day for the stock?
      mutate(closeunder=Close<Open) %>%
      # work only within one stock (ordered by date)
      group_by(Name) %>% arrange(Date) %>% 
      # calculate rolling stats
-     mutate( win.mu = c(rep(0,windowwidth-1), rollapply(Close,width=windowwidth,FUN=mean) ) ) %>%
-     mutate( win.sd = c(rep(0,windowwidth-1), rollapply(Close,width=windowwidth,FUN=sd) ) ) %>%
+     mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
+     mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
      mutate( low.1sd = win.mu-win.sd) %>%
-     # buy signal
-     mutate( buy    = lag(Close) < lag(low.1sd) & Open < lag(low.1sd) ) %>%
-     # don't buy if already bought!
-     mutate( buy    = ifelse(lag(buy) & buy,NA,buy) )
+     # red is when we want to buy
+     mutate( bs    = lag(Close) < lag(low.1sd) & Open < lag(low.1sd) ) %>%
+     mutate( redudantbs    = lag(bs) & bs ) %>%
+     # buy value is value of close first entering into red
+     mutate( buy    = ifelse(bs&!redudantbs, Open, NA ) ) %>%
+     # simulate sell just before close (when close was good)
+     mutate( buycost   = na.locf(buy) ) %>%
+     mutate( sell   = Close > buycost ) %>%
+     mutate( sell   = ifelse(lag(sell) & sell,F,sell )) %>% 
+     # calc return
+     mutate( profit   = ifelse(sell,Close-buycost,0) ) 
 
+quotesdf$sell=F
+ddply(quotesdf,.(Name), function(df){
+  buyval=NA
+  for (i in 1:nrow(df)) {
+    if(!is.na(df[i,'buy'] ) )  buyval = df[i,'buy']
+    s=df[i,'Close'] > buyval
+    if(is.na(s)) s=F
+    if(s) buyval=NA
+
+    df[i,'sell'] = s  
+  }
+})
+     %>%
+     #
+     mutate( buy    = na.locf( buy ) )  %>%
+     mutate( buy    = ifelse(bs,buy,NA) ) %>%
+     # when to sell
+     mutate( sell   = lag(bs) & Open > buy )
+
+#see
+data.frame(tail(quotesdf,n=100))
 
 # TODO:
 #  sell
