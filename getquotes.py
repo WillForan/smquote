@@ -91,8 +91,12 @@ main
 for l in open('nasdaqtickers.txt','r'):
   stk=l.strip()
   if stk.startswith("#"): continue
-  pprint(stk)
-  getsavedata(stk)
+  try:
+    pprint(stk)
+    getsavedata(stk)
+  except:
+    pprint('failed to get stock' + stk)
+    pass
 
 
 
