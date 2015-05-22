@@ -8,6 +8,7 @@ library(dplyr) # %>%
 library(zoo) # rollaply
 library(RcppRoll) # window/roll functions
 library(ggplot2)
+library(libridate)
 
 # given a dataframe with a buy value and a close value
 # calculate when to sell
@@ -15,11 +16,16 @@ calcbuyval <- function(df){
   buyval=NA
   count=0
   maxloss=.25
+  # change me to e.g. 1 to always sell the same day (day after)
+  #  with stop loss, max should stay at 20
   maxhold=20
   loss=0
   for (i in 1:nrow(df)) {
     if(!is.na(df[i,'buy'] ) ){
       buyval = df[i,'buy']
+
+      # if stock is small, don't sit on it for very long
+      #if buyval<2 maxhold=2
     }
     
     if(!is.na(buyval)) {
@@ -36,6 +42,7 @@ calcbuyval <- function(df){
       buyval=NA
       count=0
       loss=0
+      maxhold=20
     }
     else {
      df[i,'buy'] = buyval
@@ -55,11 +62,12 @@ quotes <- lapply(Sys.glob('data/*csv'),read.table,header=T,sep=",")
 
 # collapse list into 1 dataframe, calculations
 quotesdf <- rbind.fill(quotes) 
-
 # remove stocks that have too few time points
 newstocks <- quotesdf %>% group_by(Name) %>% summarise(n=n()) %>% filter(n<=20) %>% select(Name)
 quotesdfm <- quotesdf %>%
-    filter(!(Name %in% unlist(newstocks)))
+    mutate(Date = decimal_date(as.Date(as.character(Date)) ) ) %>%
+    arrange(Name,Date) %>% 
+    filter( !(Name %in% unlist(newstocks)) )
 # or just play with some we know work
 #   filter(Name %in% c('AAPL','GOOGL','YHOO'))
 
@@ -74,9 +82,17 @@ quotesdfm <- quotesdfm %>%
      mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
      mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
      mutate( low.1sd = win.mu-win.sd) %>%
+     mutate( safedate = lead(Date) - lag(Date) <=.003*4  ) %>%
      # red is when we want to buy
-     mutate( bs    = lag(Adj.Close) < lag(low.1sd) & Open < lag(low.1sd) ) %>%
-     mutate( redudantbs    = lag(bs) & bs ) %>%
+     # - yesterday's close is below the stnd dev
+     # - today's open is also below
+     # - and it opened above a dollar (so we dont loose big) -- & Open>1 
+     # - also make sure we have sorted data
+     mutate( bs    = lag(Adj.Close) < lag(low.1sd) & Open < lag(low.1sd) & safedate) %>%
+     mutate( redudantbs    = lag(bs) & bs ) 
+     # works up to there!
+
+quotesdfm <- quotesdfm %>%
      # buy value is value of close first entering into red
      mutate( buy    = ifelse(bs&!redudantbs, Open, NA ) ) %>%
      mutate(sell=F,gain=0,gprct=0)
@@ -97,6 +113,7 @@ quotesdfm <- quotesdfm %>%
    
 
 quotesdfms <- ddply(quotesdfm,.(Name),calcbuyval)
+qbak <- quotesdfms 
 
 
 #see
