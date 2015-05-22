@@ -9,55 +9,99 @@ library(zoo) # rollaply
 library(RcppRoll) # window/roll functions
 library(ggplot2)
 
+# given a dataframe with a buy value and a close value
+# calculate when to sell
+calcbuyval <- function(df){
+  buyval=NA
+  count=0
+  maxloss=.25
+  maxhold=20
+  loss=0
+  for (i in 1:nrow(df)) {
+    if(!is.na(df[i,'buy'] ) ){
+      buyval = df[i,'buy']
+    }
+    
+    if(!is.na(buyval)) {
+       count=count+1
+       loss= 1 - df[i,'close']/buyval
+    }
+
+    s=df[i,'Adj.Close'] > buyval || count > maxhold || loss>maxloss
+
+    if(is.na(s)) s=F
+    if(s){
+      df[i,'gain'] = df[i,'Adj.Close'] - buyval
+      df[i,'gprct'] = (df[i,'Adj.Close'] - buyval)/buyval*100
+      buyval=NA
+      count=0
+      loss=0
+    }
+    else {
+     df[i,'buy'] = buyval
+     }
+
+    df[i,'sell'] = s  
+  }
+  return(df)
+}
+
 # what window lenght do we want to use for rolling stats
 windowwidth<-20
+
 
 # put all the csv files into a list
 quotes <- lapply(Sys.glob('data/*csv'),read.table,header=T,sep=",")
 
 # collapse list into 1 dataframe, calculations
-quotesdf <- rbind.fill(quotes) %>%
-    # bad day for the stock?
-     mutate(closeunder=Close<Open) %>%
+quotesdf <- rbind.fill(quotes) 
+
+# remove stocks that have too few time points
+newstocks <- quotesdf %>% group_by(Name) %>% summarise(n=n()) %>% filter(n<=20) %>% select(Name)
+quotesdfm <- quotesdf %>%
+    filter(!(Name %in% unlist(newstocks)))
+# or just play with some we know work
+#   filter(Name %in% c('AAPL','GOOGL','YHOO'))
+
+# narrow what we are looking at fo rnow
+
+quotesdfm <- quotesdfm %>%
+     # bad day for the stock?
+     mutate(closeunder=Adj.Close<Open) %>%
      # work only within one stock (ordered by date)
      group_by(Name) %>% arrange(Date) %>% 
      # calculate rolling stats
-     mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
-     mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
+     mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
+     mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
      mutate( low.1sd = win.mu-win.sd) %>%
      # red is when we want to buy
-     mutate( bs    = lag(Close) < lag(low.1sd) & Open < lag(low.1sd) ) %>%
+     mutate( bs    = lag(Adj.Close) < lag(low.1sd) & Open < lag(low.1sd) ) %>%
      mutate( redudantbs    = lag(bs) & bs ) %>%
      # buy value is value of close first entering into red
      mutate( buy    = ifelse(bs&!redudantbs, Open, NA ) ) %>%
-     # simulate sell just before close (when close was good)
-     mutate( buycost   = na.locf(buy) ) %>%
-     mutate( sell   = Close > buycost ) %>%
-     mutate( sell   = ifelse(lag(sell) & sell,F,sell )) %>% 
-     # calc return
-     mutate( profit   = ifelse(sell,Close-buycost,0) ) 
+     mutate(sell=F,gain=0,gprct=0)
+    #  # broke after here ?
+    #  # simulate sell just before close (when close was good)
+    #  mutate( buycost   = na.locf(buy) ) %>%
+    #  mutate( sell   = Adj.Close > buycost ) %>%
+    #  mutate( sell   = ifelse(lag(sell) & sell,F,sell )) %>% 
+    #  # calc return
+    #  mutate( profit   = ifelse(sell,Close-buycost,0) ) 
+    #### more junk
+    #  %>%
+    #  #
+    #  mutate( buy    = na.locf( buy ) )  %>%
+    #  mutate( buy    = ifelse(bs,buy,NA) ) %>%
+    #  # when to sell
+    #  mutate( sell   = lag(bs) & Open > buy )
+   
 
-quotesdf$sell=F
-ddply(quotesdf,.(Name), function(df){
-  buyval=NA
-  for (i in 1:nrow(df)) {
-    if(!is.na(df[i,'buy'] ) )  buyval = df[i,'buy']
-    s=df[i,'Close'] > buyval
-    if(is.na(s)) s=F
-    if(s) buyval=NA
+quotesdfms <- ddply(quotesdfm,.(Name),calcbuyval)
 
-    df[i,'sell'] = s  
-  }
-})
-     %>%
-     #
-     mutate( buy    = na.locf( buy ) )  %>%
-     mutate( buy    = ifelse(bs,buy,NA) ) %>%
-     # when to sell
-     mutate( sell   = lag(bs) & Open > buy )
 
 #see
-data.frame(tail(quotesdf,n=100))
+print(unique(quotesdfm$gprct))
+#data.frame(tail(quotesdf,n=100))
 
 # TODO:
 #  sell
