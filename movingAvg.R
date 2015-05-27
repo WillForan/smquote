@@ -8,8 +8,21 @@ library(dplyr) # %>%
 library(zoo) # rollaply
 library(RcppRoll) # window/roll functions
 library(ggplot2)
-library(libridate)
+library(lubridate)
 
+
+undecimate <- function(x) {
+  # get the year and then determine the number of seconds in the year so you can
+  # use the decimal part of the year
+  x.year <- floor(x)
+  # fraction of the year
+  x.frac <- x - x.year + .001
+  # number of seconds in each year
+  x.sec.yr <- unclass(ISOdate(x.year+1,1,1,0,0,0)) - unclass(ISOdate(x.year,1,1,0,0,0))
+  # now get the actual time
+  x.actual <- ISOdate(x.year,1,1,0,0,0) + x.frac * x.sec.yr 
+  return(x.actual)
+}
 # given a dataframe with a buy value and a close value
 # calculate when to sell
 calcbuyval <- function(df){
@@ -82,7 +95,7 @@ quotesdfm <- quotesdfm %>%
      mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
      mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
      mutate( low.1sd = win.mu-win.sd) %>%
-     mutate( safedate = lead(Date) - lag(Date) <=.003*4  ) %>%
+     mutate( safedate = lead(Date) - lag(Date) <=(1/365.25)*5  ) %>%
      # red is when we want to buy
      # - yesterday's close is below the stnd dev
      # - today's open is also below
