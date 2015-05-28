@@ -53,7 +53,7 @@ def getsavedata(stk,firstday='2013-01-01',lastday='today',forceupdate=False):
 
       if forceupdate:
          pprint([prevdate, lastquote,firstday,lastday])
-         quotes.update( ystockquote.get_historical_prices(stk,nextdate,lastday) )
+         quotes.update( ystockquote.get_historical_prices(stk,firstday,lastday) )
          savestock(stk,quotes)
          dl=1
 
