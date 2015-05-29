@@ -57,7 +57,6 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
 
       # all days over the buy period
       sidx=(i-count) + 1:(count-1) 
-      print(sidx)
 
       # check for unsafe dates (missing data/date)
       unsafe=any(!df[sidx,'safedate'])

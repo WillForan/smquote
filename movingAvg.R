@@ -6,6 +6,8 @@
 library(plyr)  # rbind.fill
 library(dplyr) # %>%
 library(ggplot2)
+
+#library(devtools); install('smquote')
 library(smquote) # make.history
 
 
@@ -23,7 +25,9 @@ qbak <- quotesdfms
 
 
 #see
-print(unique(quotesdfm$gprct))
+print(summary(quotesdfms$gprct))
 #data.frame(tail(quotesdf,n=100))
 
-
+p<-ggplot(qbak%>%filter(sell),aes(x=buy,y=gprct))+geom_point()
+ggsave('gainbybuy.png',p)
+qbak %>% mutate(bg=cut(buy,c(1:10))) %>% filter(abs(gprct)<10**3) %>% group_by(bg) %>% summarise(mean(gprct),sd(gprct),n=n(), length(unique(Name)))

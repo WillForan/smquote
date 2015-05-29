@@ -12,6 +12,9 @@ require(Holidays)
 #' @export 
 #' @examples
 #'  safedates(as.Date('2015-01-03'),as.Date('2015-01-02') )
+
+
+
 safedates <- function(d1,d2) {
 
   # if we skipped a friday b/c of holiday, add to prev date
@@ -19,7 +22,8 @@ safedates <- function(d1,d2) {
   d2<-ifelse(ud2,d2+1,d2) 
   class(d2) <- "Date" # because ifelse strips class info
 
-  # if prev date was a friday (or friday was a holiday), pretend we have a sunday date
+  # if prev date was a friday (or friday was a holiday)
+  #   pretend we have a sunday date
   d2<-ifelse(wday(d2)==6,d2+2,d2)
   class(d2) <- "Date" # because ifelse strips class info
 

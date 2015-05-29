@@ -21,7 +21,7 @@ test_that("calcbuyval_small", {
  
 
  doubleloss <- calcbuyval( mkbsdf(c(NA,1,NA),c(1,0,0)),maxhold=1 )
- expect_that(doublegain%>%filter(sell)%>%select(gprct),equals(-100))
+ expect_that(doubleloss %>%filter(sell)%>%select(gprct),equals(-100))
 })
 
 test_that("calcbuyval_unsafe", {
