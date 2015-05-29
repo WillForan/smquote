@@ -5,157 +5,25 @@
 
 library(plyr)  # rbind.fill
 library(dplyr) # %>%
-library(zoo) # rollaply
-library(RcppRoll) # window/roll functions
 library(ggplot2)
-library(lubridate)
-library(Holidays)
+library(smquote) # make.history
 
-# function to check dates are continious (before adding a buy signal)
-# that is, only at most a holiday separates them
-# first input should be newer date, the date we will determine is safe or not
-safedates <- function(d1,d2) {
 
-  # if we skipped a friday b/c of holiday, add to prev date
-  ud2 <- wday(d2+1)==6 & isHoliday(d2+1,'NYSE')
-  d2<-ifelse(ud2,d2+1,d2) 
-  class(d2) <- "Date" # because ifelse strips class info
 
-  # if prev date was a friday (or friday was a holiday), pretend we have a sunday date
-  d2<-ifelse(wday(d2)==6,d2+2,d2)
-  class(d2) <- "Date" # because ifelse strips class info
-
-  # is the date difference a day (or plus one if it's a holiday)
-  d1 - d2 == 1 + ifelse(isHoliday(d1-1,'NYSE'),1,0) 
-}
-
-# undo decimal_date
-undecimate <- function(x) {
-  # get the year and then determine the number of seconds in the year so you can
-  # use the decimal part of the year
-  x.year <- floor(x)
-  # fraction of the year
-  x.frac <- x - x.year + .001
-  # number of seconds in each year
-  x.sec.yr <- unclass(ISOdate(x.year+1,1,1,0,0,0)) - unclass(ISOdate(x.year,1,1,0,0,0))
-  # now get the actual time
-  x.actual <- ISOdate(x.year,1,1,0,0,0) + x.frac * x.sec.yr 
-  return(x.actual)
-}
-# given a dataframe with a buy value and a close value
-# calculate when to sell
-calcbuyval <- function(df){
-  buyval=NA
-  count=0
-  maxloss=.25
-  # change me to e.g. 1 to always sell the same day (day after)
-  #  with stop loss, max should stay at 20
-  maxhold=1
-  loss=0
-  for (i in 1:nrow(df)) {
-    if(!is.na(df[i,'buy'] ) ){
-      buyval = df[i,'buy']
-
-      # if stock is small, don't sit on it for very long
-      #if buyval<2 maxhold=2
-    }
-    
-    if(!is.na(buyval)) {
-       count=count+1
-       loss= 1 - df[i,'close']/buyval
-    }
-
-    s=df[i,'Adj.Close'] > buyval || count > maxhold || loss>maxloss
-
-    if(is.na(s)) s=F
-    if(s){
-      df[i,'gain'] = df[i,'Adj.Close'] - buyval
-      df[i,'gprct'] = (df[i,'Adj.Close'] - buyval)/buyval*100
-      buyval=NA
-      count=0
-      loss=0
-      maxhold=20
-    }
-    else {
-     df[i,'buy'] = buyval
-     }
-
-    df[i,'sell'] = s  
-  }
-  return(df)
-}
-
-# what window lenght do we want to use for rolling stats
-windowwidth<-20
 
 
 # put all the csv files into a list
 quotes <- lapply(Sys.glob('data/*csv'),read.table,header=T,sep=",")
-
 # collapse list into 1 dataframe, calculations
 quotesdf <- rbind.fill(quotes) 
 # remove stocks that have too few time points
-newstocks <- quotesdf %>% group_by(Name) %>% summarise(n=n()) %>% filter(n<=20) %>% select(Name)
-quotesdfm <- quotesdf %>%
-    mutate(Date = as.Date(as.character(Date)  ) ) %>%
-    arrange(Name,Date) %>% 
-    filter( !(Name %in% unlist(newstocks)) )
-# or just play with some we know work
-#   filter(Name %in% c('AAPL','GOOGL','YHOO'))
 
-# narrow what we are looking at fo rnow
-
-quotesdfm <- quotesdfm %>%
-     # bad day for the stock?
-     mutate(closeunder=Adj.Close<Open) %>%
-     # work only within one stock (ordered by date)
-     group_by(Name) %>%  arrange(Date) %>% 
-     # calculate rolling stats
-     mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
-     mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
-     mutate( low.1sd = win.mu-win.sd) %>%
-     mutate( safedate = safedates(Date,lag(Date)) ) %>%
-     #mutate( safedate = lead(Date) - lag(Date) <=(1/365.25)*6  ) %>%
-     # red is when we want to buy
-     # - yesterday's close is below the stnd dev
-     # - today's open is also below
-     # - and it opened above a dollar (so we dont loose big) -- & Open>1 
-     # - also make sure we have sorted data
-     mutate( bs    = lag(Adj.Close) < lag(low.1sd) & Open < lag(low.1sd) & safedate) %>%
-     mutate( redudantbs    = lag(bs) & bs )  #%>%
-     #mutate( DD = format(undecimate(Date),"%a %Y-%m-%d") )
-
-quotesdfm <- quotesdfm %>%
-     # buy value is value of close first entering into red
-     ungroup %>% 
-     mutate( buy    = ifelse(bs&!redudantbs, Open, NA ) ) %>%
-     mutate(sell=F,gain=0,gprct=0) #%>%
-    #  # broke after here ?
-    #  # simulate sell just before close (when close was good)
-    #  mutate( buycost   = na.locf(buy) ) %>%
-    #  mutate( sell   = Adj.Close > buycost ) %>%
-    #  mutate( sell   = ifelse(lag(sell) & sell,F,sell )) %>% 
-    #  # calc return
-    #  mutate( profit   = ifelse(sell,Close-buycost,0) ) 
-    #### more junk
-    #  %>%
-    #  #
-    #  mutate( buy    = na.locf( buy ) )  %>%
-    #  mutate( buy    = ifelse(bs,buy,NA) ) %>%
-    #  # when to sell
-    #  mutate( sell   = lag(bs) & Open > buy )
-   
-
-quotesdfms <- ddply(quotesdfm,.(Name),calcbuyval)
+quotesdfms <- make.history(quotesdf,20)
 qbak <- quotesdfms 
 
 
 #see
 print(unique(quotesdfm$gprct))
 #data.frame(tail(quotesdf,n=100))
-
-# TODO:
-#  sell
-#  validate
 
 
