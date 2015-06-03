@@ -56,14 +56,16 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
     if(s){
 
       # all days over the buy period
-      sidx=(i-count) + 1:(count-1) 
+      sidx=(i-count) + 1:(count) 
 
       # check for unsafe dates (missing data/date)
       unsafe=any(!df[sidx,'safedate'])
       if(unsafe) {
         # reset buy to NAs
-        df[sidx,'sell']<-NA
         df[sidx,'buy']<-NA
+        # set sell to NA (instead of t,f)
+        df[sidx,'sell']<-NA
+        s=NA
 
       } else {
         # is safe, calc gain and percent

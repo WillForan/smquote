@@ -1,6 +1,21 @@
+#  library(quantmod) #  getSymbols("AAPL",src="yahoo")
+
+
+# TODO:
+# - buy date (lag volume)
+# - volume by price calc
+# - get stocks in R
+# - predict output
+
+
+# names(d) <- c('Open','High','Low','Close','Volume','Adj.Close')
+# d$Date<-row.names(d)
+# d$Name<-"Date"
+
 require(dplyr) # %>%
 require(zoo) # rollaply
 require(RcppRoll) # window/roll functions
+require(TTR) # RSI
 
 #' Make History from historical stock data
 #' 
@@ -29,8 +44,10 @@ make.history <- function(quotesdf,windowwidth=20){
         # calculate rolling stats
         mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
         mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
+        mutate( slope =  c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=function(.) mean(diff(.),na.rm=T) ) ) ) %>%
         mutate( low.1sd = win.mu-win.sd) %>%
         mutate( safedate = safedates(Date,lag(Date)) ) %>%
+        mutate( RSI = RSI(Adj.Close) ) %>%
         #mutate( safedate = lead(Date) - lag(Date) <=(1/365.25)*6  ) %>%
         # red is when we want to buy
         # - yesterday's close is below the stnd dev
@@ -78,3 +95,4 @@ undecimate <- function(x) {
   x.actual <- ISOdate(x.year,1,1,0,0,0) + x.frac * x.sec.yr 
   return(x.actual)
 }
+
