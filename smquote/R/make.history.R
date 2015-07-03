@@ -1,11 +1,16 @@
 #  library(quantmod) #  getSymbols("AAPL",src="yahoo")
 
 
-# TODO:
-# - buy date (lag volume)
+# TOTEST, done:
+# - buy date (lag volume, lag slope) 
 # - volume by price calc
-# - get stocks in R
-# - predict output
+# FUTURE:
+# - get stocks in R (quantmod)
+# - predict output ( regression model?)
+# FUTURE FUTURE:
+# - port to xtf? 
+#   https://groups.google.com/forum/#!topic/manipulatr/lnqN3y7-ysE
+#   http://timelyportfolio.github.io/rCharts_factor_analytics/factors_with_new_R.html
 
 
 # names(d) <- c('Open','High','Low','Close','Volume','Adj.Close')
@@ -44,7 +49,8 @@ make.history <- function(quotesdf,windowwidth=20){
         # calculate rolling stats
         mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
         mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
-        mutate( slope =  c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=function(.) mean(diff(.),na.rm=T) ) ) ) %>%
+        mutate( slope =   c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=function(.) mean(diff(.),na.rm=T) ) ) ) %>%
+        # other metrics
         mutate( low.1sd = win.mu-win.sd) %>%
         mutate( safedate = safedates(Date,lag(Date)) ) %>%
         mutate( RSI = RSI(Adj.Close) ) %>%
@@ -58,11 +64,15 @@ make.history <- function(quotesdf,windowwidth=20){
         mutate( redudantbs    = lag(bs) & bs )  #%>%
         #mutate( DD = format(undecimate(Date),"%a %Y-%m-%d") )
 
+   # adjust volume and slope, set buy, initilize for calcbuy
    quotesdfm <- quotesdfm %>%
+        # we wouldn't know the slope or volume for current day, so adjust these
+        mutate( lag.slope = lag(slope) ) %>%
+        mutate( lag.Volume = lag(Volume) ) %>%
         # buy value is value of close first entering into red
         ungroup %>% 
         mutate( buy    = ifelse(bs&!redudantbs, Open, NA ) ) %>%
-        mutate(sell=F,gain=0,gprct=0) #%>%
+        mutate(sell=F,gain=0,gprct=0,buydate=NA) #%>%
        #  # broke after here ?
        #  # simulate sell just before close (when close was good)
        #  mutate( buycost   = na.locf(buy) ) %>%
@@ -96,3 +106,7 @@ undecimate <- function(x) {
   return(x.actual)
 }
 
+# make xts into a data.table
+xts2dt <- function(x) {
+  data.table(date=index(x), coredata(x))
+}

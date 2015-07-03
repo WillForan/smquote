@@ -43,3 +43,21 @@ qbak%>%filter(sell,slope>0,Volume>10**5) %>% summarise(min(Date),max(Date),n(),m
  a<-qbak %>% mutate( .open=lead(Open),.close=lead(Adj.Close), pg=(1-.close/.open)*100 ) %>% filter(RSI>90,Open>3,Adj.Close<15,Adj.Close>=3,Volume>5*10**6) %>% select(Name,Date,Adj.Close,Open,RSI,Volume,pg,.open,.close)
  a$pg[a$pg< -5] <- -5
  ggplot(a,aes(x=Open,y=pg,size=Volume,color=RSI))+geom_point()
+
+##### 
+alldf <- make.history(quotesdf,20)
+
+d <- alldf %>% filter(gprct != 0 ) %>% select(Name,Date,buydate,Close,lag.Volume,lag.slope,gprct,Open) %>% mutate(buydate = as.Date(buydate)) %>% filter(lag.slope > 0)
+
+d$gpz <- as.numeric(scale(d$gprct))
+
+dl1 <- d %>% mutate( lvc = cut(lag.Volume, c(0,10^4, 10^5,10^6)), ol = cut(Open, c(0,15,30,50,Inf)) ) %>% filter(Open>=1)
+print.data.frame ( dl1 %>% filter(gpz<2)  %>% group_by(ol,lvc) %>% summarise(min(gprct),max(gprct),mean(gprct),quantile(gprct,.8),n()) )
+
+ggplot(d %>% filter( abs(gpz) < 1, Open>=1), aes(x=Close,y=gprct,size=lag.Volume) ) + geom_point()                              
+ggsave('gprct_vol_open.png')
+
+
+
+dl1 %>% filter(gpz<2) %>% group_by(Date) %>% filter(Open>1,Open<=15,lag.Volume>5*10^5) %>% summarise(n=n(),mg=round(mean(gprct),1),mgprct=cut(mean(gprct),c(-99,0,1,20) ) ) %>% ggplot(aes(x=Date,y=n,size=abs(mg)))+geom_point(aes(color=mgprct))
+ggsave('nperday_meangprct.png')
