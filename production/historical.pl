@@ -51,7 +51,9 @@ sub start_date {
   # TODO: drop if too much older than neightbors (dead sym)
   # 'select min(day) from (select max(day) as day from history group by sym)'
   # start_date=>DateTime->now()->subtract(days=>23)->strftime('%m/%d/%Y'),
-  my $start_date=DateTime->now()->subtract(days=>35)->ymd('/');
-  say $start_date;
-  return($start_date);
+  
+  # my $start_date=DateTime->now()->subtract(days=>35)->ymd('/');
+  # say $start_date;
+  # return($start_date);
+  return 'today';
 }

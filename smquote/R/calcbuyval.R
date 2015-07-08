@@ -16,11 +16,14 @@
 #'  # remove stocks that have too few time points
 #'  quotesdfms <- make.history(quotesdf,20)
 #'
-calcbuyval <- function(df,maxloss=.25,maxhold=1){
+calcbuyval <- function(df,maxloss=.10,maxhold=5,minhold=1){
 
+  df$count=0
+  df$lbvol=NA
+  df$buydate=NA
   # maxloss: how much of a hit can we take (decimal percent)
   # maxhold: how long to hold a stock before considering it a wash (even though we didn't hit max loss)
-  #   change to e.g. 1 to always sell the same day (day after)
+  #   change to e.g. 1 to always sell the same day (practial limit of code is day after if still loosing)
 
   # initialize some values
   # we'll change these in a the loop as we have stocks to sell
@@ -28,6 +31,7 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
   buydate = NA
   count=0
   loss=0
+  lbvol=0
 
   # go through each day of the stock
   for (i in 1:nrow(df)) {
@@ -35,7 +39,9 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
     # set buyval if we are buying
     if(!is.na(df[i,'buy'] ) ){
       buyval = df[i,'buy']
-      buydate = as.Date(df[i,'Date'])
+      lbvol = df[i-1,'Volume']
+      buydate = df[i,'Date'] # why is this a number?
+      #cat('settting buydate ',buydate,'\n')
 
       # if stock is small, don't sit on it for very long
       #if buyval<2 maxhold=2
@@ -49,7 +55,7 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
     
     # should we sell?
     # made money, hit count or loss threshold
-    s=df[i,'Close'] > buyval || count > maxhold || loss>maxloss
+    s= (df[i,'Close'] > buyval || count >= maxhold || loss>=maxloss) && count >= minhold
 
     # NA to F
     if(is.na(s)) s=F
@@ -67,6 +73,8 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
         df[sidx,'buy']<-NA
         # set sell to NA (instead of t,f)
         df[sidx,'sell']<-NA
+        df[sidx,'count']<-0
+        df[sidx,'lbvol']<-NA
         s=NA
 
       } else {
@@ -75,6 +83,8 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
         df[i,'gain'] = df[i,'Close'] - buyval
         df[i,'gprct'] = (df[i,'Close'] - buyval)/buyval*100
         df[i,'buydate'] = buydate
+        df[i,'count'] = count
+        df[i,'lbvol'] = lbvol
       }
       
       # reset our global counters
@@ -82,6 +92,7 @@ calcbuyval <- function(df,maxloss=.25,maxhold=1){
       buydate = NA
       count=0
       loss=0
+      lbvol=0
     }
 
     # we aren't ready to sell but have bought

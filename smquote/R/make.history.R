@@ -65,8 +65,9 @@ make.history <- function(quotesdf,windowwidth=20){
         # - today's open is also below
         # - and it opened above a dollar (so we dont loose big) -- & Open>1 
         # - also make sure we have sorted data
-        mutate( bs    = lag(pb) & Open < lag(low.1sd) & safedate) %>%
-        mutate( redudantbs    = lag(bs) & bs )  #%>%  # dont buy if we've already bought
+        mutate( pb    = Adj.Close < low.1sd ) %>%
+        mutate( bs    = lag(Adj.Close) < lag(low.1sd) & Open < lag(low.1sd) & safedate) %>%
+        mutate( redudantbs    = lag(bs) & bs )  #%>%
         #mutate( DD = format(undecimate(Date),"%a %Y-%m-%d") )
 
    # adjust volume and slope, set buy, initilize for calcbuy
