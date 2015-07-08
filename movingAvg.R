@@ -25,6 +25,7 @@ quotesdf <- rbind.fill(quotes)
 cur <- quotesdf %>% group_by(Name) %>% do(tail(.,n=23))
 
 quotesdfms <- make.history(quotesdf,20)
+quotesdf$Date <- as.Date(quotesdf$Date)
 qbak <- quotesdfms 
 
 
@@ -40,14 +41,25 @@ qbak %>% mutate(bg=cut(buy,c(1:10))) %>% filter(abs(gprct)<10**3) %>% group_by(b
 qbak%>%filter(sell,slope>0,Volume>10**5) %>% summarise(min(Date),max(Date),n(),mean(gprct),max(gprct),min(gprct),median(gprct),length(unique(Name)),length(which(gprct<0)))
 
 ## see short sell by RSI
- a<-qbak %>% mutate( .open=lead(Open),.close=lead(Adj.Close), pg=(1-.close/.open)*100 ) %>% filter(RSI>90,Open>3,Adj.Close<15,Adj.Close>=3,Volume>5*10**6) %>% select(Name,Date,Adj.Close,Open,RSI,Volume,pg,.open,.close)
- a$pg[a$pg< -5] <- -5
- ggplot(a,aes(x=Open,y=pg,size=Volume,color=RSI))+geom_point()
+a<-qbak %>% 
+  mutate( .open=lead(Open),.close=lead(Adj.Close), pg=(1-.close/.open)*100 ) %>% 
+  filter(RSI>90,Open>3,Adj.Close<15,Adj.Close>=3,Volume>5*10**6) %>% 
+  select(Name,Date,Adj.Close,Open,RSI,Volume,pg,.open,.close)
+
+a$pg[a$pg< -5] <- -5
+ggplot(a,aes(x=Open,y=pg,size=Volume,color=RSI))+geom_point()
+
 
 ##### 
 alldf <- make.history(quotesdf,20)
 
-d <- alldf %>% filter(gprct != 0 ) %>% select(Name,Date,buydate,Close,lag.Volume,lag.slope,gprct,Open) %>% mutate(buydate = as.Date(buydate)) %>% filter(lag.slope > 0)
+## when do we make or loss money
+#  and we had a positive slope the day before
+d <- alldf %>% 
+  filter(gprct != 0 ) %>% 
+  select(Name,Date,buydate,Close,lag.Volume,lag.slope,gprct,Open) %>% 
+  mutate(buydate = as.Date(buydate)) %>% 
+  filter(lag.slope > 0)
 
 d$gpz <- as.numeric(scale(d$gprct))
 
@@ -61,3 +73,32 @@ ggsave('gprct_vol_open.png')
 
 dl1 %>% filter(gpz<2) %>% group_by(Date) %>% filter(Open>1,Open<=15,lag.Volume>5*10^5) %>% summarise(n=n(),mg=round(mean(gprct),1),mgprct=cut(mean(gprct),c(-99,0,1,20) ) ) %>% ggplot(aes(x=Date,y=n,size=abs(mg)))+geom_point(aes(color=mgprct))
 ggsave('nperday_meangprct.png')
+
+
+
+#### sort sell -- gains fast previous day, expect crash 
+## take 1
+short <- quotesdf %>% 
+   group_by(Name) %>% 
+   mutate( 
+           closel2=lag(Close,2), closel1=lag(Close),
+           openl2=lag(Open,2),   openl1=lag(Open),
+                                 highl1=lag(High),
+           acl2=lag(Adj.Close,2),acl1=lag(Adj.Close),
+           lv2 =lag(Volume,2),   lv1=lag(Volume),
+           mlv=ifelse(lv2>lv1,lv2,lv1),
+           #comp = 2*ifelse( acl2>openl1, openl1, acl2)
+           #comp = 2*min(openl1,acl2,openl2) # 2 times the smallest between open/close l2 and open l1
+           comp= 2*ifelse(openl1<acl2,openl1,ifelse(acl2<openl2,acl2,openl2))
+         ) %>% 
+   filter( 
+           #highl1>2*openl1,
+           mlv>10^6,
+           highl1 > comp,
+           Open<10, Open>1.5,
+           Open<acl1
+           #acl1>=1.5*acl2 
+         ) %>%
+   mutate( shortgain= (Open-Close)/(Open) ) 
+
+
