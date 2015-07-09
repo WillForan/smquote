@@ -21,7 +21,7 @@ alldf <- make.history(quotesdf,20)
 alldf %>% filter(Date==max(Date),pb) %>%head
 
 # print stocks we might want to grab
-write.table(file="screened.txt",alldf %>% filter(Date==max(Date),pb,slope>0) %>% select(Name,low.1sd,Volume,slope,Close),quote=F,sep="\t")
+write.table(file="screened.txt",alldf %>% filter(Date==max(Date),pb,slope>0) %>% select(Name,low.1sd,Volume,slope,Close),quote=F,sep="\t",row.names=F)
 
 
 
