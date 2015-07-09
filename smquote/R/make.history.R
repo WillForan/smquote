@@ -49,15 +49,12 @@ make.history <- function(quotesdf,windowwidth=20){
         # calculate rolling stats
         mutate( win.mu = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=mean,na.rm=T) ) ) %>%
         mutate( win.sd = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=sd,na.rm=T) ) ) %>%
-        mutate( slope =   c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=function(.) mean(diff(.),na.rm=T) ) ) ) %>%
+        mutate( slope  = c(rep(NA,windowwidth-1), rollapply(Adj.Close,width=windowwidth,FUN=function(.) mean(diff(.),na.rm=T) ) ) ) %>%
         # other metrics
-        mutate( low.1sd = win.mu-win.sd) %>%
+        mutate( low.1sd  = win.mu-win.sd ) %>%
         mutate( safedate = safedates(Date,lag(Date)) ) %>%
-        mutate( RSI = RSI(Adj.Close) ) %>%
+        mutate( RSI      = RSI(Adj.Close) ) %>%
 
-        # buy potential for tomorrow if adj close and slope are approp.
-        # where pb=T are good candiates to download overnight data
-        mutate( pb  = Adj.Close < low.1sd & slope > 0) %>%
 
         #mutate( safedate = lead(Date) - lag(Date) <=(1/365.25)*6  ) %>%
         # red is when we want to buy
@@ -65,7 +62,11 @@ make.history <- function(quotesdf,windowwidth=20){
         # - today's open is also below
         # - and it opened above a dollar (so we dont loose big) -- & Open>1 
         # - also make sure we have sorted data
+
+        # buy potential for tomorrow if adj close and slope are approp.
+        # where pb=T are good candiates to download overnight data
         mutate( pb    = Adj.Close < low.1sd ) %>%
+        #mutate( pb  = Adj.Close < low.1sd & slope > 0) %>%
         mutate( bs    = lag(Adj.Close) < lag(low.1sd) & Open < lag(low.1sd) & safedate) %>%
         mutate( redudantbs    = lag(bs) & bs )  #%>%
         #mutate( DD = format(undecimate(Date),"%a %Y-%m-%d") )
