@@ -20,6 +20,7 @@ calcbuyval <- function(df,maxloss=.10,maxhold=5,minhold=1){
 
   df$count=0
   df$lbvol=NA
+  df$lslope=NA
   df$buydate=NA
   # maxloss: how much of a hit can we take (decimal percent)
   # maxhold: how long to hold a stock before considering it a wash (even though we didn't hit max loss)
@@ -32,6 +33,7 @@ calcbuyval <- function(df,maxloss=.10,maxhold=5,minhold=1){
   count=0
   loss=0
   lbvol=0
+  lslope=NA
 
   # go through each day of the stock
   for (i in 1:nrow(df)) {
@@ -40,6 +42,7 @@ calcbuyval <- function(df,maxloss=.10,maxhold=5,minhold=1){
     if(!is.na(df[i,'buy'] ) ){
       buyval = df[i,'buy']
       lbvol = df[i-1,'Volume']
+      lslope = df[i-1,'slope']
       buydate = df[i,'Date'] # why is this a number?
       #cat('settting buydate ',buydate,'\n')
 
@@ -75,6 +78,7 @@ calcbuyval <- function(df,maxloss=.10,maxhold=5,minhold=1){
         df[sidx,'sell']<-NA
         df[sidx,'count']<-0
         df[sidx,'lbvol']<-NA
+        df[sidx,'lslope']<-NA
         s=NA
 
       } else {
@@ -85,6 +89,7 @@ calcbuyval <- function(df,maxloss=.10,maxhold=5,minhold=1){
         df[i,'buydate'] = buydate
         df[i,'count'] = count
         df[i,'lbvol'] = lbvol
+        df[i,'lslope'] = lslope
       }
       
       # reset our global counters
@@ -93,6 +98,7 @@ calcbuyval <- function(df,maxloss=.10,maxhold=5,minhold=1){
       count=0
       loss=0
       lbvol=0
+      lslope=NA
     }
 
     # we aren't ready to sell but have bought
