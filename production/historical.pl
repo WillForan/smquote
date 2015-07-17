@@ -10,11 +10,12 @@ my $dbh=DBI->connect("dbi:SQLite:dbname=./stock.db","","",{
  PrintError =>1, RaiseError =>1, AutoCommit=>1});
 my $uor=$dbh->prepare("INSERT OR REPLACE INTO history (sym,day,open,high,low,close,vol) VALUES (?,?,?,?,?,?,?)");
 
-
+my $startday=&start_date();
+say "getting all stocks for $startday to today";
 # prepare quote
 my $q=Finance::QuoteHist->new(
   end_date=>'today',
-  start_date=> &start_date(),
+  start_date=> $startday,
   symbols=>[ &tickers() ]
  );
 
@@ -41,7 +42,7 @@ sub tickers {
   push @sym, $_ while(<$symsfh>);
   close $symsfh;
   #@sym=@sym[0..2]; #limit what we do
-  say @sym;
+  #say @sym;
   return(@sym);
 }
 
@@ -55,5 +56,17 @@ sub start_date {
   # my $start_date=DateTime->now()->subtract(days=>35)->ymd('/');
   # say $start_date;
   # return($start_date);
-  return 'today';
+
+  #return 'yesterday';
+  
+  # get last day in db
+  my $lastdayq=$dbh->prepare("select 
+    date(day,'+1 day'),count(day) as cd 
+   from history 
+    group by day 
+    having cd>1800 
+    order by day desc limit 1");
+  $lastdayq->execute();
+  my @row=$lastdayq->fetchrow_array();
+  return $row[0];
 }

@@ -17,7 +17,7 @@ mv:
 	mv screened.txt old/screened.`date +%F`
 	mv buy.txt old/buy.`date +%F`
 
-sell:
+sell: buy.txt
 	./currentData.pl buy.txt |tee sell.txt| awk '(NR>1){print $$1,($$2-$$3)/$$3}'
 
-new: mv updatedb buy.txt
+new: mv updatedb sell
